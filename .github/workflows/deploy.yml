@@ -10,10 +10,6 @@ env:
 
 jobs:
 
-  # ─────────────────────────────────────────────
-  # JOB 1: Pull the real Docker image, run it,
-  #         send a real prediction, confirm it works
-  # ─────────────────────────────────────────────
   smoke-test:
     name: Model Smoke Test
     runs-on: ubuntu-latest
@@ -37,49 +33,4 @@ jobs:
         if: always()
         run: docker stop smoke-test && docker rm smoke-test
 
-  # ─────────────────────────────────────────────
-  # JOB 2: Deploy to Hugging Face Spaces
-  #         Runs only after smoke-test passes
-  # ─────────────────────────────────────────────
   deploy:
-    - name: Upload to Hugging Face Space
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_USERNAME: ${{ secrets.HF_USERNAME }}
-          HF_SPACE_NAME: ${{ secrets.HF_SPACE_NAME }}
-        run: |
-          pip install huggingface_hub -q
-          python - <<'EOF'
-          import os
-          from huggingface_hub import HfApi
-          api = HfApi()
-          api.upload_folder(
-              folder_path='hf-space/',
-              repo_id=f"{os.environ['HF_USERNAME']}/{os.environ['HF_SPACE_NAME']}",
-              repo_type='space',
-              token=os.environ['HF_TOKEN']
-          )
-          print('Deployed successfully to HF Space')
-          EOF
-
-  # ─────────────────────────────────────────────
-  # JOB 3: Confirm the deployment is live
-  # ─────────────────────────────────────────────
-  health-check:
-    name: Post-Deploy Health Check
-    runs-on: ubuntu-latest
-    needs: deploy
-    steps:
-      - name: Wait for Space to rebuild
-        run: sleep 90
-
-      - name: Call health endpoint and confirm version
-        env:
-          HF_USERNAME: ${{ secrets.HF_USERNAME }}
-          HF_SPACE_NAME: ${{ secrets.HF_SPACE_NAME }}
-        run: |
-          curl --fail \
-               --retry 5 \
-               --retry-delay 30 \
-               --retry-connrefused \
-               https://$HF_USERNAME-$HF_SPACE_NAME.hf.space/health
